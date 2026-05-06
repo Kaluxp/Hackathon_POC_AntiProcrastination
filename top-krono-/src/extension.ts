@@ -1,17 +1,23 @@
 import * as vscode from 'vscode';
+import { formatLongDuration } from './topChrono/format';
 import { buildGithubSummary } from './topChrono/github';
+import { getCurrentRank, getNextRank } from './topChrono/ranks';
 import { TopChronoSession } from './topChrono/session';
 import { renderStatusBar } from './topChrono/statusBar';
 
 let session: TopChronoSession | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
+let dashboardPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
 	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	statusBarItem.command = 'top-krono.openDashboard';
 	context.subscriptions.push(statusBarItem);
+
 	session = new TopChronoSession(context, () => {
 		if (statusBarItem && session) {
 			renderStatusBar(statusBarItem, session.getState());
+			pushDashboardState(context);
 		}
 	});
 	renderStatusBar(statusBarItem, session.getState());
@@ -31,16 +37,46 @@ export function activate(context: vscode.ExtensionContext): void {
 	});
 
 	const dashboardCommand = vscode.commands.registerCommand('top-krono.openDashboard', () => {
-		const panel = vscode.window.createWebviewPanel(
-			'topChrono',
-			'Top Chrono',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true
-			}
-		);
+		if (dashboardPanel) {
+			dashboardPanel.reveal(vscode.ViewColumn.One);
+			pushDashboardState(context);
+			return;
+		}
 
-		panel.webview.html = getWebviewContent();
+		dashboardPanel = vscode.window.createWebviewPanel('topChrono', 'Top Chrono Dashboard', vscode.ViewColumn.One, {
+			enableScripts: true,
+		});
+		dashboardPanel.webview.html = getWebviewContent();
+
+		dashboardPanel.webview.onDidReceiveMessage(async (message) => {
+			if (!session) {
+				return;
+			}
+
+			switch (message?.type) {
+				case 'requestState':
+					pushDashboardState(context);
+					break;
+				case 'start':
+					if (session.start()) {
+						vscode.window.showInformationMessage('Top Chrono started. Stay focused.');
+					}
+					pushDashboardState(context);
+					break;
+				case 'copyGithub':
+					await vscode.commands.executeCommand('top-krono.exportGithubBadge');
+					pushDashboardState(context);
+					break;
+				default:
+					break;
+			}
+		});
+
+		dashboardPanel.onDidDispose(() => {
+			dashboardPanel = undefined;
+		});
+
+		pushDashboardState(context);
 	});
 
 	const exportGithubCommand = vscode.commands.registerCommand('top-krono.exportGithubBadge', async () => {
@@ -76,7 +112,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 }
 
-
 export function deactivate(): void {
 	void session?.dispose();
 }
@@ -88,59 +123,208 @@ function getWebviewContent(): string {
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Top Chrono</title>
+		<title>Top Chrono Dashboard</title>
 		<style>
 			body {
-				background-color: #0f172a;
-				color: white;
-				font-family: Arial, sans-serif;
-				padding: 20px;
+				background: #0b1220;
+				color: #e5e7eb;
+				font-family: Inter, Segoe UI, Arial, sans-serif;
+				padding: 20px 24px;
 			}
 
-			.card {
-				background: #1e293b;
+			.wrap {
+				max-width: 780px;
+				margin: 0 auto;
+			}
+
+			.card, .kpi {
+				background: #111827;
 				border-radius: 12px;
-				padding: 20px;
-				box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+				padding: 16px;
+				border: 1px solid #374151;
+			}
+
+			h1 {
+				margin: 0 0 6px 0;
+				font-size: 22px;
+			}
+
+			.muted {
+				color: #9ca3af;
+				margin-bottom: 16px;
+			}
+
+			.row {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 12px;
+				margin-bottom: 14px;
+			}
+
+			.kpi .label {
+				color: #93c5fd;
+				font-size: 12px;
+			}
+
+			.kpi .value {
+				font-size: 18px;
+				font-weight: 700;
+				margin-top: 6px;
 			}
 
 			.progress {
-				height: 10px;
-				background: #334155;
-				border-radius: 5px;
-				overflow: hidden;
-				margin-top: 10px;
+				height: 100%;
+				width: 0%;
+				background: linear-gradient(90deg, #7c3aed, #22d3ee);
+				border-radius: 999px;
+				transition: width 0.3s;
 			}
 
-			.progress-bar {
-				height: 100%;
-				width: 65%;
-				background: linear-gradient(90deg, #7c3aed, #a78bfa);
+			.progressTrack {
+				margin-top: 10px;
+				height: 10px;
+				background: #1f2937;
+				border-radius: 999px;
+				overflow: hidden;
+			}
+
+			.pill {
+				display: inline-block;
+				margin-top: 10px;
+				padding: 6px 10px;
+				border-radius: 999px;
+				font-size: 12px;
+				background: #1f2937;
+				color: #d1d5db;
+			}
+
+			.actions {
+				display: flex;
+				gap: 10px;
+				margin-top: 14px;
 			}
 
 			button {
-				margin-top: 15px;
-				padding: 10px;
+				padding: 9px 12px;
 				border: none;
 				border-radius: 8px;
 				background: #7c3aed;
-				color: white;
+				color: #fff;
 				cursor: pointer;
+			}
+
+			button.secondary {
+				background: #374151;
+			}
+
+			ul {
+				padding-left: 18px;
+				color: #d1d5db;
 			}
 		</style>
 	</head>
 	<body>
-		<div class="card">
-			<h2>⚡ Top Chrono</h2>
-			<p>Rank: Chevalier Jedi</p>
-			
-			<div class="progress">
-				<div class="progress-bar"></div>
+		<div class="wrap">
+			<h1>Top Chrono Dashboard</h1>
+			<div class="muted">Focus discipline with game-like progression.</div>
+
+			<div class="row">
+				<div class="kpi"><div class="label">Work time</div><div id="work" class="value">00:00</div></div>
+				<div class="kpi"><div class="label">Break earned</div><div id="break" class="value">00:00</div></div>
+				<div class="kpi"><div class="label">Current rank</div><div id="rank" class="value">Novice</div></div>
 			</div>
 
-			<button onclick="alert('Start!')">Start Session</button>
+			<div class="card">
+				<div style="font-weight:600">Rank progress</div>
+				<div id="nextRank" class="pill">No next rank</div>
+				<div class="progressTrack">
+					<div id="rankProgress" class="progress"></div>
+				</div>
+			</div>
+
+			<div class="card" style="margin-top:12px">
+				<div style="font-weight:600">Pause system</div>
+				<ul>
+					<li id="autoBreak">Auto break: every minute gain +10s</li>
+					<li id="activityProgress">Activity points: 0 / 10</li>
+				</ul>
+				<div class="actions">
+					<button id="startBtn">Start Top Chrono</button>
+					<button id="copyBtn" class="secondary">Copy GitHub Summary</button>
+				</div>
+			</div>
 		</div>
+
+		<script>
+			const vscode = acquireVsCodeApi();
+			const el = (id) => document.getElementById(id);
+
+			el('startBtn').addEventListener('click', () => vscode.postMessage({ type: 'start' }));
+			el('copyBtn').addEventListener('click', () => vscode.postMessage({ type: 'copyGithub' }));
+
+			window.addEventListener('message', (event) => {
+				const data = event.data;
+				if (!data || data.type !== 'state') {
+					return;
+				}
+
+				el('work').textContent = data.work;
+				el('break').textContent = data.break;
+				el('rank').textContent = data.rank;
+				el('nextRank').textContent = data.nextRankText;
+				el('rankProgress').style.width = data.rankProgressPercent + '%';
+				el('autoBreak').textContent = 'Auto break: +' + data.autoBreakReward + 's every ' + data.autoBreakEvery + 's (next in ' + data.nextAutoBreakIn + 's)';
+				el('activityProgress').textContent = 'Activity points: ' + data.activityPoints + ' / ' + data.pointsPerBreakSecond;
+			});
+
+			vscode.postMessage({ type: 'requestState' });
+			setInterval(() => vscode.postMessage({ type: 'requestState' }), 1000);
+		</script>
 	</body>
 	</html>
 	`;
+}
+
+function pushDashboardState(context: vscode.ExtensionContext): void {
+	if (!dashboardPanel || !session) {
+		return;
+	}
+
+	const state = session.getState();
+	const currentRank = getCurrentRank(state.workSeconds);
+	const nextRank = getNextRank(state.workSeconds);
+	const previousThreshold = getPreviousThreshold(state.workSeconds);
+	const nextThreshold = nextRank?.minSeconds ?? state.workSeconds;
+	const denom = Math.max(1, nextThreshold - previousThreshold);
+	const rankProgressPercent = Math.max(0, Math.min(100, Math.round(((state.workSeconds - previousThreshold) / denom) * 100)));
+
+	const nextRankText = nextRank
+		? `${nextRank.name} in ${formatLongDuration(nextRank.minSeconds - state.workSeconds)}`
+		: 'Top rank reached';
+
+	dashboardPanel.webview.postMessage({
+		type: 'state',
+		work: formatLongDuration(state.workSeconds),
+		break: formatLongDuration(state.breakSeconds),
+		rank: currentRank,
+		nextRankText,
+		rankProgressPercent,
+		activityPoints: state.activityPoints,
+		pointsPerBreakSecond: state.pointsPerBreakSecond,
+		autoBreakEvery: state.autoBreakIntervalSeconds,
+		autoBreakReward: state.autoBreakRewardSeconds,
+		nextAutoBreakIn: state.nextAutoBreakInSeconds,
+		totalWork: context.globalState.get<number>('topChrono.totalWorkSeconds', 0) + state.workSeconds,
+	});
+}
+
+function getPreviousThreshold(workSeconds: number): number {
+	const thresholds = [0, 5 * 60, 10 * 60, 20 * 60, 30 * 60, 60 * 60, 5 * 60 * 60];
+	let prev = 0;
+	for (const t of thresholds) {
+		if (workSeconds >= t) {
+			prev = t;
+		}
+	}
+	return prev;
 }

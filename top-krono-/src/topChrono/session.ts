@@ -6,11 +6,18 @@ export const GLOBAL_MEDALS_KEY = 'topChrono.medals';
 
 const ACTIVITY_COOLDOWN_MS = 2_000;
 const POINTS_PER_BREAK_SECOND = 10;
+const AUTO_BREAK_INTERVAL_SECONDS = 60;
+const AUTO_BREAK_REWARD_SECONDS = 10;
 
 export type SessionState = {
 	workSeconds: number;
 	breakSeconds: number;
 	isRunning: boolean;
+	activityPoints: number;
+	pointsPerBreakSecond: number;
+	autoBreakIntervalSeconds: number;
+	autoBreakRewardSeconds: number;
+	nextAutoBreakInSeconds: number;
 };
 
 export class TopChronoSession {
@@ -22,6 +29,7 @@ export class TopChronoSession {
 	private lastActivityAt = 0;
 	private unlockedSessionMedals = new Set<string>();
 	private persisted = false;
+	private elapsedSinceAutoBreak = 0;
 
 	public constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -39,9 +47,15 @@ export class TopChronoSession {
 		this.activityPoints = 0;
 		this.lastActivityAt = 0;
 		this.unlockedSessionMedals = new Set<string>();
+		this.elapsedSinceAutoBreak = 0;
 
 		this.timer = setInterval(() => {
 			this.workSeconds += 1;
+			this.elapsedSinceAutoBreak += 1;
+			if (this.elapsedSinceAutoBreak >= AUTO_BREAK_INTERVAL_SECONDS) {
+				this.breakSeconds += AUTO_BREAK_REWARD_SECONDS;
+				this.elapsedSinceAutoBreak = 0;
+			}
 			this.unlockMedalsIfNeeded();
 			this.onStateChanged();
 		}, 1_000);
@@ -88,6 +102,11 @@ export class TopChronoSession {
 			workSeconds: this.workSeconds,
 			breakSeconds: this.breakSeconds,
 			isRunning: this.isRunning,
+			activityPoints: this.activityPoints,
+			pointsPerBreakSecond: POINTS_PER_BREAK_SECOND,
+			autoBreakIntervalSeconds: AUTO_BREAK_INTERVAL_SECONDS,
+			autoBreakRewardSeconds: AUTO_BREAK_REWARD_SECONDS,
+			nextAutoBreakInSeconds: AUTO_BREAK_INTERVAL_SECONDS - this.elapsedSinceAutoBreak,
 		};
 	}
 
