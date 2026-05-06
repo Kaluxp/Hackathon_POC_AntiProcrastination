@@ -130,21 +130,21 @@ Ici, le README est dans **`top-krono-/`**, donc le chemin vers les mêmes fichie
 
 **Visuel principal (HUD / inspiration UI)**
 
-![Alt text](../Doc/image-2.png)
+![Alt text](image-2.png)
 
 **Autres visuels**
 
-![Alt text](../Doc/image-1.png)
+![Alt text](image-1.png)
 
-![Alt text](../Doc/image-3.png)
+![Alt text](image-3.png)
 
-![Alt text](../Doc/image-4.png)
+![Alt text](image-4.png)
 
-![Alt text](../Doc/image-5.png)
+![Alt text](image-5.png)
 
-![Alt text](../Doc/image-6.png)
+![Alt text](image-6.png)
 
-![Alt text](../Doc/image.png)
+![Alt text](image.png)
 
 > Si une image ne s’affiche pas sur GitHub : vérifie que les fichiers `Doc/*.png` sont bien versionnés (non ignorés par `.gitignore`).
 
