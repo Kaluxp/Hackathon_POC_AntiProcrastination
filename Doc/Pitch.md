@@ -1,11 +1,8 @@
 Aujourd’hui, la majorité des développeurs ne procrastinent pas parce qu’ils ne savent pas quoi faire… mais parce qu’ils n’arrivent pas à rester concentrés sur la durée.
 
-On a tous déjà vécu ça :
-on ouvre Visual Studio Code…
-et 10 minutes plus tard, on est sur YouTube ou Discord.
 
-👉 Le problème n’est pas la motivation.
-👉 C’est la discipline et la gestion du focus.
+on a donc décider de créer un oputil adapté pour aider les dev dans leur travail a travers une extension vs code
+
 
 Top Chrono ! est une extension VS Code qui transforme le travail en un système de discipline gamifié.
 
@@ -21,7 +18,11 @@ l’éditeur se bloque temporairement,
 vous êtes encouragé à vraiment vous reposer,
 et vous recevez une notification pour revenir au bon moment.
 
-Mais le cœur du système, c’est la progression :
+Mais le cœur du système, c’est la progression via des grades exportable dans github
+
+
+
+
 
 10 minutes → Petit soldat
 1 heure → Guerrier
