@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+build/
+
+# VS Code packaging
+*.vsix
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# env
+.env
+
+# vscode test
+.vscode-test/
+
+# coverage
+coverage/
