@@ -11,7 +11,8 @@
   ],
   "activationEvents": [
     "onCommand:top-krono.start",
-    "onCommand:top-krono.exportGithubBadge"
+    "onCommand:top-krono.exportGithubBadge",
+    "onCommand:top-krono.openDashboard"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -23,6 +24,10 @@
       {
         "command": "top-krono.exportGithubBadge",
         "title": "Top Chrono: Export GitHub Summary"
+      },
+      {
+        "command": "top-krono.openDashboard",
+        "title": "Open Top Chrono Dashboard"
       }
     ]
   },

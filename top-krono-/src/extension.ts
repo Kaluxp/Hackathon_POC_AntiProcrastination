@@ -30,6 +30,19 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.showInformationMessage('Top Chrono is already running.');
 	});
 
+	const dashboardCommand = vscode.commands.registerCommand('top-krono.openDashboard', () => {
+		const panel = vscode.window.createWebviewPanel(
+			'topChrono',
+			'Top Chrono',
+			vscode.ViewColumn.One,
+			{
+				enableScripts: true
+			}
+		);
+
+		panel.webview.html = getWebviewContent();
+	});
+
 	const exportGithubCommand = vscode.commands.registerCommand('top-krono.exportGithubBadge', async () => {
 		if (!session) {
 			return;
@@ -53,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		startCommand,
 		exportGithubCommand,
+		dashboardCommand,
 		textChangeListener,
 		editorChangeListener,
 		saveListener,
@@ -62,6 +76,71 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 }
 
+
 export function deactivate(): void {
 	void session?.dispose();
+}
+
+function getWebviewContent(): string {
+	return `
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Top Chrono</title>
+		<style>
+			body {
+				background-color: #0f172a;
+				color: white;
+				font-family: Arial, sans-serif;
+				padding: 20px;
+			}
+
+			.card {
+				background: #1e293b;
+				border-radius: 12px;
+				padding: 20px;
+				box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+			}
+
+			.progress {
+				height: 10px;
+				background: #334155;
+				border-radius: 5px;
+				overflow: hidden;
+				margin-top: 10px;
+			}
+
+			.progress-bar {
+				height: 100%;
+				width: 65%;
+				background: linear-gradient(90deg, #7c3aed, #a78bfa);
+			}
+
+			button {
+				margin-top: 15px;
+				padding: 10px;
+				border: none;
+				border-radius: 8px;
+				background: #7c3aed;
+				color: white;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<h2>⚡ Top Chrono</h2>
+			<p>Rank: Chevalier Jedi</p>
+			
+			<div class="progress">
+				<div class="progress-bar"></div>
+			</div>
+
+			<button onclick="alert('Start!')">Start Session</button>
+		</div>
+	</body>
+	</html>
+	`;
 }
