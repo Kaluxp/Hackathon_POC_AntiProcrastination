@@ -1,16 +1,17 @@
-Ton idée est **très bonne pour un hackathon** — elle coche presque tout :
+![Alt text](image-1.png)
 
-* niche claire (**devs**),
-* mécanique simple à comprendre,
-* gamification forte,
-* démo visuelle facile (extension + UI),
-* différenciation (ce n’est pas juste une TODO app).
 
-Je te fais un résumé propre + un feedback + des noms.
+![Alt text](image-2.png)
 
+![Alt text](image-3.png)
+
+![Alt text](image-4.png)
+
+![Alt text](image-5.png)
 ---
 
-# 🧠 Concept résumé proprement
+
+# 🧠 Concept
 
 ## Nom temporaire : “Chrono Focus Dev”
 

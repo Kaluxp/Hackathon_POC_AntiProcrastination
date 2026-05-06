@@ -1,26 +1,67 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { buildGithubSummary } from './topChrono/github';
+import { TopChronoSession } from './topChrono/session';
+import { renderStatusBar } from './topChrono/statusBar';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+let session: TopChronoSession | undefined;
+let statusBarItem: vscode.StatusBarItem | undefined;
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "top-krono-" is now active!');
+export function activate(context: vscode.ExtensionContext): void {
+	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+	context.subscriptions.push(statusBarItem);
+	session = new TopChronoSession(context, () => {
+		if (statusBarItem && session) {
+			renderStatusBar(statusBarItem, session.getState());
+		}
+	});
+	renderStatusBar(statusBarItem, session.getState());
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('top-krono-.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Top Krono!!');
+	const startCommand = vscode.commands.registerCommand('topChrono.start', () => {
+		if (!session) {
+			return;
+		}
+
+		const started = session.start();
+		if (started) {
+			vscode.window.showInformationMessage('Top Chrono started. Stay focused.');
+			return;
+		}
+
+		vscode.window.showInformationMessage('Top Chrono is already running.');
 	});
 
-	context.subscriptions.push(disposable);
+	const exportGithubCommand = vscode.commands.registerCommand('topChrono.exportGithubBadge', async () => {
+		if (!session) {
+			return;
+		}
+
+		const markdown = buildGithubSummary(context, session.getState());
+		await vscode.env.clipboard.writeText(markdown);
+		vscode.window.showInformationMessage('Top Chrono summary copied to clipboard for GitHub.');
+	});
+
+	const textChangeListener = vscode.workspace.onDidChangeTextDocument(() => {
+		session?.addActivityPoints(2);
+	});
+	const editorChangeListener = vscode.window.onDidChangeActiveTextEditor(() => {
+		session?.addActivityPoints(1);
+	});
+	const saveListener = vscode.workspace.onDidSaveTextDocument(() => {
+		session?.addActivityPoints(3);
+	});
+
+	context.subscriptions.push(
+		startCommand,
+		exportGithubCommand,
+		textChangeListener,
+		editorChangeListener,
+		saveListener,
+		new vscode.Disposable(async () => {
+			await session?.dispose();
+		})
+	);
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate(): void {
+	void session?.dispose();
+}

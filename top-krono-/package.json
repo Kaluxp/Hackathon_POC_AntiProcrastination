@@ -9,13 +9,20 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:topChrono.start",
+    "onCommand:topChrono.exportGithubBadge"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "top-krono-.helloWorld",
-        "title": "Hello World"
+        "command": "topChrono.start",
+        "title": "Start Top Chrono"
+      },
+      {
+        "command": "topChrono.exportGithubBadge",
+        "title": "Top Chrono: Export GitHub Summary"
       }
     ]
   },
