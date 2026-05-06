@@ -11,6 +11,8 @@
   ],
   "activationEvents": [
     "onCommand:top-krono.start",
+    "onCommand:top-krono.startBreak",
+    "onCommand:top-krono.endBreak",
     "onCommand:top-krono.exportGithubBadge",
     "onCommand:top-krono.openDashboard"
   ],
@@ -24,6 +26,14 @@
       {
         "command": "top-krono.exportGithubBadge",
         "title": "Top Chrono: Export GitHub Summary"
+      },
+      {
+        "command": "top-krono.startBreak",
+        "title": "Top Chrono: Start Break"
+      },
+      {
+        "command": "top-krono.endBreak",
+        "title": "Top Chrono: Resume Work"
       },
       {
         "command": "top-krono.openDashboard",

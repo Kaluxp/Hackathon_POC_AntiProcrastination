@@ -13,6 +13,10 @@ export type SessionState = {
 	workSeconds: number;
 	breakSeconds: number;
 	isRunning: boolean;
+	isOnBreak: boolean;
+	currentBreakSeconds: number;
+	currentBreakAllowedSeconds: number;
+	breakOverrunSeconds: number;
 	activityPoints: number;
 	pointsPerBreakSecond: number;
 	autoBreakIntervalSeconds: number;
@@ -30,6 +34,10 @@ export class TopChronoSession {
 	private unlockedSessionMedals = new Set<string>();
 	private persisted = false;
 	private elapsedSinceAutoBreak = 0;
+	private isOnBreak = false;
+	private currentBreakSeconds = 0;
+	private currentBreakAllowedSeconds = 0;
+	private breakOverrunSeconds = 0;
 
 	public constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -48,15 +56,28 @@ export class TopChronoSession {
 		this.lastActivityAt = 0;
 		this.unlockedSessionMedals = new Set<string>();
 		this.elapsedSinceAutoBreak = 0;
+		this.isOnBreak = false;
+		this.currentBreakSeconds = 0;
+		this.currentBreakAllowedSeconds = 0;
+		this.breakOverrunSeconds = 0;
 
 		this.timer = setInterval(() => {
-			this.workSeconds += 1;
-			this.elapsedSinceAutoBreak += 1;
-			if (this.elapsedSinceAutoBreak >= AUTO_BREAK_INTERVAL_SECONDS) {
-				this.breakSeconds += AUTO_BREAK_REWARD_SECONDS;
-				this.elapsedSinceAutoBreak = 0;
+			if (this.isOnBreak) {
+				this.currentBreakSeconds += 1;
+				if (this.breakSeconds > 0) {
+					this.breakSeconds -= 1;
+				} else {
+					this.breakOverrunSeconds += 1;
+				}
+			} else {
+				this.workSeconds += 1;
+				this.elapsedSinceAutoBreak += 1;
+				if (this.elapsedSinceAutoBreak >= AUTO_BREAK_INTERVAL_SECONDS) {
+					this.breakSeconds += AUTO_BREAK_REWARD_SECONDS;
+					this.elapsedSinceAutoBreak = 0;
+				}
+				this.unlockMedalsIfNeeded();
 			}
-			this.unlockMedalsIfNeeded();
 			this.onStateChanged();
 		}, 1_000);
 
@@ -78,7 +99,7 @@ export class TopChronoSession {
 	}
 
 	public addActivityPoints(points: number): void {
-		if (!this.isRunning || points <= 0) {
+		if (!this.isRunning || this.isOnBreak || points <= 0) {
 			return;
 		}
 
@@ -97,11 +118,39 @@ export class TopChronoSession {
 		this.onStateChanged();
 	}
 
+	public startBreak(): boolean {
+		if (!this.isRunning || this.isOnBreak) {
+			return false;
+		}
+		this.isOnBreak = true;
+		this.currentBreakSeconds = 0;
+		this.currentBreakAllowedSeconds = this.breakSeconds;
+		this.breakOverrunSeconds = 0;
+		this.onStateChanged();
+		return true;
+	}
+
+	public endBreak(): boolean {
+		if (!this.isOnBreak) {
+			return false;
+		}
+		this.isOnBreak = false;
+		this.currentBreakSeconds = 0;
+		this.currentBreakAllowedSeconds = 0;
+		this.breakOverrunSeconds = 0;
+		this.onStateChanged();
+		return true;
+	}
+
 	public getState(): SessionState {
 		return {
 			workSeconds: this.workSeconds,
 			breakSeconds: this.breakSeconds,
 			isRunning: this.isRunning,
+			isOnBreak: this.isOnBreak,
+			currentBreakSeconds: this.currentBreakSeconds,
+			currentBreakAllowedSeconds: this.currentBreakAllowedSeconds,
+			breakOverrunSeconds: this.breakOverrunSeconds,
 			activityPoints: this.activityPoints,
 			pointsPerBreakSecond: POINTS_PER_BREAK_SECOND,
 			autoBreakIntervalSeconds: AUTO_BREAK_INTERVAL_SECONDS,

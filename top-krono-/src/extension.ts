@@ -8,6 +8,8 @@ import { renderStatusBar } from './topChrono/statusBar';
 let session: TopChronoSession | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let dashboardPanel: vscode.WebviewPanel | undefined;
+let overrunAlertShownForCurrentBreak = false;
+let overrunModalInFlight = false;
 
 export function activate(context: vscode.ExtensionContext): void {
 	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
@@ -16,7 +18,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	session = new TopChronoSession(context, () => {
 		if (statusBarItem && session) {
-			renderStatusBar(statusBarItem, session.getState());
+			const state = session.getState();
+			renderStatusBar(statusBarItem, state);
+			void handleBreakOverrunAlert(state);
 			pushDashboardState(context);
 		}
 	});
@@ -45,8 +49,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		dashboardPanel = vscode.window.createWebviewPanel('topChrono', 'Top Chrono Dashboard', vscode.ViewColumn.One, {
 			enableScripts: true,
+			localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'assets')],
 		});
-		dashboardPanel.webview.html = getWebviewContent();
+		const padawanIconUri = dashboardPanel.webview.asWebviewUri(
+			vscode.Uri.joinPath(context.extensionUri, 'assets', 'icons', 'image.png')
+		);
+		dashboardPanel.webview.html = getWebviewContent(padawanIconUri.toString());
 
 		dashboardPanel.webview.onDidReceiveMessage(async (message) => {
 			if (!session) {
@@ -65,6 +73,18 @@ export function activate(context: vscode.ExtensionContext): void {
 					break;
 				case 'copyGithub':
 					await vscode.commands.executeCommand('top-krono.exportGithubBadge');
+					pushDashboardState(context);
+					break;
+				case 'startBreak':
+					if (session.startBreak()) {
+						vscode.window.showInformationMessage('Pause started. Good recovery.');
+					}
+					pushDashboardState(context);
+					break;
+				case 'endBreak':
+					if (session.endBreak()) {
+						vscode.window.showInformationMessage('Break ended. Back to focus mode.');
+					}
 					pushDashboardState(context);
 					break;
 				default:
@@ -88,6 +108,26 @@ export function activate(context: vscode.ExtensionContext): void {
 		await vscode.env.clipboard.writeText(markdown);
 		vscode.window.showInformationMessage('Top Chrono summary copied to clipboard for GitHub.');
 	});
+	const startBreakCommand = vscode.commands.registerCommand('top-krono.startBreak', () => {
+		if (!session) {
+			return;
+		}
+		if (session.startBreak()) {
+			vscode.window.showInformationMessage('Pause started. Good recovery.');
+			return;
+		}
+		vscode.window.showWarningMessage('Cannot start break now.');
+	});
+	const endBreakCommand = vscode.commands.registerCommand('top-krono.endBreak', () => {
+		if (!session) {
+			return;
+		}
+		if (session.endBreak()) {
+			vscode.window.showInformationMessage('Break ended. Back to focus mode.');
+			return;
+		}
+		vscode.window.showWarningMessage('No active break to end.');
+	});
 
 	const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
 		const typedChars = event.contentChanges.reduce((acc, change) => acc + change.text.length, 0);
@@ -103,6 +143,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(
 		startCommand,
+		startBreakCommand,
+		endBreakCommand,
 		exportGithubCommand,
 		dashboardCommand,
 		textChangeListener,
@@ -118,7 +160,7 @@ export function deactivate(): void {
 	void session?.dispose();
 }
 
-function getWebviewContent(): string {
+function getWebviewContent(padawanIconUri: string): string {
 	return `
 	<!DOCTYPE html>
 	<html lang="en">
@@ -172,6 +214,20 @@ function getWebviewContent(): string {
 				font-size: 18px;
 				font-weight: 700;
 				margin-top: 6px;
+			}
+
+			.rankHeader {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+
+			.rankIcon {
+				width: 56px;
+				height: 56px;
+				border-radius: 10px;
+				border: 1px solid #374151;
+				display: none;
 			}
 
 			.progress {
@@ -232,12 +288,15 @@ function getWebviewContent(): string {
 
 			<div class="row">
 				<div class="kpi"><div class="label">Work time</div><div id="work" class="value">00:00</div></div>
-				<div class="kpi"><div class="label">Break earned</div><div id="break" class="value">00:00</div></div>
+				<div class="kpi"><div class="label">Break available</div><div id="break" class="value">00:00</div></div>
 				<div class="kpi"><div class="label">Current rank</div><div id="rank" class="value">Novice</div></div>
 			</div>
 
 			<div class="card">
-				<div style="font-weight:600">Rank progress</div>
+				<div class="rankHeader">
+					<img id="padawanIcon" class="rankIcon" src="${padawanIconUri}" alt="Padawan icon" />
+					<div style="font-weight:600">Rank progress</div>
+				</div>
 				<div id="nextRank" class="pill">No next rank</div>
 				<div class="progressTrack">
 					<div id="rankProgress" class="progress"></div>
@@ -246,12 +305,17 @@ function getWebviewContent(): string {
 
 			<div class="card" style="margin-top:12px">
 				<div style="font-weight:600">Pause system</div>
+				<div id="breakState" class="pill">Break state: idle</div>
 				<ul>
 					<li id="autoBreak">Auto break: every minute gain +10s</li>
 					<li id="activityProgress">Activity points: 0 / 10</li>
+					<li id="breakUsage">Current break: 00:00 / 00:00</li>
+					<li id="breakOverrun">Overrun: 00:00</li>
 				</ul>
 				<div class="actions">
 					<button id="startBtn">Start Top Chrono</button>
+					<button id="startBreakBtn">Start Break</button>
+					<button id="endBreakBtn" class="secondary">Resume Work</button>
 					<button id="copyBtn" class="secondary">Copy GitHub Summary</button>
 				</div>
 			</div>
@@ -262,6 +326,8 @@ function getWebviewContent(): string {
 			const el = (id) => document.getElementById(id);
 
 			el('startBtn').addEventListener('click', () => vscode.postMessage({ type: 'start' }));
+			el('startBreakBtn').addEventListener('click', () => vscode.postMessage({ type: 'startBreak' }));
+			el('endBreakBtn').addEventListener('click', () => vscode.postMessage({ type: 'endBreak' }));
 			el('copyBtn').addEventListener('click', () => vscode.postMessage({ type: 'copyGithub' }));
 
 			window.addEventListener('message', (event) => {
@@ -277,6 +343,10 @@ function getWebviewContent(): string {
 				el('rankProgress').style.width = data.rankProgressPercent + '%';
 				el('autoBreak').textContent = 'Auto break: +' + data.autoBreakReward + 's every ' + data.autoBreakEvery + 's (next in ' + data.nextAutoBreakIn + 's)';
 				el('activityProgress').textContent = 'Activity points: ' + data.activityPoints + ' / ' + data.pointsPerBreakSecond;
+				el('breakState').textContent = data.isOnBreak ? 'Break state: in progress' : 'Break state: idle';
+				el('breakUsage').textContent = 'Current break: ' + data.currentBreak + ' / ' + data.currentBreakAllowed;
+				el('breakOverrun').textContent = 'Overrun: ' + data.breakOverrun;
+				el('padawanIcon').style.display = data.showPadawanIcon ? 'block' : 'none';
 			});
 
 			vscode.postMessage({ type: 'requestState' });
@@ -313,11 +383,50 @@ function pushDashboardState(context: vscode.ExtensionContext): void {
 		rankProgressPercent,
 		activityPoints: state.activityPoints,
 		pointsPerBreakSecond: state.pointsPerBreakSecond,
+		isOnBreak: state.isOnBreak,
+		currentBreak: formatLongDuration(state.currentBreakSeconds),
+		currentBreakAllowed: formatLongDuration(state.currentBreakAllowedSeconds),
+		breakOverrun: formatLongDuration(state.breakOverrunSeconds),
+		showPadawanIcon: currentRank === 'Padawan',
 		autoBreakEvery: state.autoBreakIntervalSeconds,
 		autoBreakReward: state.autoBreakRewardSeconds,
 		nextAutoBreakIn: state.nextAutoBreakInSeconds,
 		totalWork: context.globalState.get<number>('topChrono.totalWorkSeconds', 0) + state.workSeconds,
 	});
+}
+
+async function handleBreakOverrunAlert(state: ReturnType<TopChronoSession['getState']>): Promise<void> {
+	if (!state.isOnBreak) {
+		overrunAlertShownForCurrentBreak = false;
+		return;
+	}
+
+	if (state.breakOverrunSeconds <= 0 || overrunAlertShownForCurrentBreak || overrunModalInFlight) {
+		return;
+	}
+
+	overrunAlertShownForCurrentBreak = true;
+	overrunModalInFlight = true;
+
+	vscode.window.showWarningMessage(
+		`Pause depassee: ${formatLongDuration(state.breakOverrunSeconds)} de plus que le credit.`,
+		'Reprendre le chrono'
+	);
+
+	try {
+		const choice = await vscode.window.showWarningMessage(
+			`PAUSE DEPASSEE !\nTu as depasse ton temps de pause autorise.\nPause autorisee: ${formatLongDuration(state.currentBreakAllowedSeconds)}\nPause actuelle: ${formatLongDuration(state.currentBreakSeconds)}`,
+			{ modal: true },
+			'Reprendre le chrono',
+			'Ignorer 5 min'
+		);
+
+		if (choice === 'Reprendre le chrono') {
+			session?.endBreak();
+		}
+	} finally {
+		overrunModalInFlight = false;
+	}
 }
 
 function getPreviousThreshold(workSeconds: number): number {
