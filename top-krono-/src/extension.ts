@@ -16,7 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	});
 	renderStatusBar(statusBarItem, session.getState());
 
-	const startCommand = vscode.commands.registerCommand('topChrono.start', () => {
+	const startCommand = vscode.commands.registerCommand('top-krono.start', () => {
 		if (!session) {
 			return;
 		}
@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.showInformationMessage('Top Chrono is already running.');
 	});
 
-	const exportGithubCommand = vscode.commands.registerCommand('topChrono.exportGithubBadge', async () => {
+	const exportGithubCommand = vscode.commands.registerCommand('top-krono.exportGithubBadge', async () => {
 		if (!session) {
 			return;
 		}
