@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { formatLongDuration } from './topChrono/format';
 import { buildGithubSummary } from './topChrono/github';
-import { getCurrentRank, getNextRank } from './topChrono/ranks';
+import { getCurrentRank, getNextRank, RANKS } from './topChrono/ranks';
 import { TopChronoSession } from './topChrono/session';
 import { renderStatusBar } from './topChrono/statusBar';
 
@@ -89,8 +89,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.showInformationMessage('Top Chrono summary copied to clipboard for GitHub.');
 	});
 
-	const textChangeListener = vscode.workspace.onDidChangeTextDocument(() => {
-		session?.addActivityPoints(2);
+	const textChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+		const typedChars = event.contentChanges.reduce((acc, change) => acc + change.text.length, 0);
+		const pointsFromChars = Math.max(1, Math.ceil(typedChars / 2));
+		session?.addActivityPoints(pointsFromChars);
 	});
 	const editorChangeListener = vscode.window.onDidChangeActiveTextEditor(() => {
 		session?.addActivityPoints(1);
@@ -319,7 +321,7 @@ function pushDashboardState(context: vscode.ExtensionContext): void {
 }
 
 function getPreviousThreshold(workSeconds: number): number {
-	const thresholds = [0, 5 * 60, 10 * 60, 20 * 60, 30 * 60, 60 * 60, 5 * 60 * 60];
+	const thresholds = [0, ...RANKS.map((rank) => rank.minSeconds)];
 	let prev = 0;
 	for (const t of thresholds) {
 		if (workSeconds >= t) {

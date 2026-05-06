@@ -4,9 +4,9 @@ import { RANKS } from './ranks';
 export const GLOBAL_TOTAL_WORK_SECONDS_KEY = 'topChrono.totalWorkSeconds';
 export const GLOBAL_MEDALS_KEY = 'topChrono.medals';
 
-const ACTIVITY_COOLDOWN_MS = 2_000;
-const POINTS_PER_BREAK_SECOND = 10;
-const AUTO_BREAK_INTERVAL_SECONDS = 60;
+const ACTIVITY_COOLDOWN_MS = 500;
+const POINTS_PER_BREAK_SECOND = 3;
+const AUTO_BREAK_INTERVAL_SECONDS = 30;
 const AUTO_BREAK_REWARD_SECONDS = 10;
 
 export type SessionState = {
